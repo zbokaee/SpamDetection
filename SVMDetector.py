@@ -1,36 +1,41 @@
-__author__ = "ZahraBokaee (2287369)"
+from sklearn import svm
+import classification_Email
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from sklearn.pipeline import Pipeline
+import os
 
- 
-from sklearn.datasets import load_files
-import ClassificationDeTexte
+class DetecteurDeSpamEmail():
+    
+    def __init__(self, meilleur_clf):
+        self.meilleur_clf = meilleur_clf
+        self.X, self.y = classification_Email.creationBase("detectionl/train")
+        self.action()
+        self.enregistre()
 
+    def action(self):
+        text_clf = Pipeline([('vect', CountVectorizer()), ('tfidf', TfidfTransformer()),
+                             ('clf', self.meilleur_clf)])
+        text_clf.fit(self.X, self.y)
 
-def nettoieMail(email):
-    
-    lignes_email = email.split(b"\n")
-    i = 0
-    while i < len(lignes_email) and lignes_email[i] != b'':
-        i += 1
-    email = b"\n".join(lignes_email[i + 1:])
-    return email.decode('utf-8', 'ignore')
+        X_test = []
+        self.filenames_test = []
+        for fichier in os.listdir('detection/test'):
+            if not(os.path.isdir(fichier)) and fichier != ".DS_Store":
+                self.filenames_test += [fichier]
+                with open("detection/test/" + fichier, 'rb') as f:
+                    email = f.read()
+                    email = classification_Email.nettoieMail(email)
+                    X_test += [email]
+        self.y_test = text_clf.predict(X_test)
 
-def creationBase(chemin_container):
-    
-    train = load_files(container_path=chemin_container, random_state=42)
-    
-    X = []
-    y = []
-    for i in range(len(train.data)):
-        if ".DS_Store" not in train.filenames[i]:
-            email = train.data[i]
-            email = nettoieMail(email)
-            X += [email]
-            classe = train.target_names[train.target[i]]
-            y += [int(classe == 'spam')]
-    
-    return X, y
+    def enregistre(self):
+     
+        fichier_sortie = open("resultats_TEST_Condaminet.txt", "w")
+        for i in range(len(self.y_test)):
+            y = self.y_test[i]
+            filename = self.filenames_test[i]
+            fichier_sortie.write(filename + " " + str(y) + "\n")
+        fichier_sortie.close()
 
 if __name__ == '__main__':
-    X, y = creationBase("Base_Email/train")
-    text_clf = ClassificationDeTexte.ClassificationDeTexte("Email", X, y, 0.33)
-    text_clf.classification()
+    DetecteurDeSpamEmail(svm.SVC(C=1000, gamma=0.01, kernel='rbf'))
